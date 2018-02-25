@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 from datetime import datetime
+from io import BytesIO
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -112,22 +113,21 @@ class ImageUploadView(generic.View):
         filename = get_upload_filename(uploaded_file.name, request.user)
 
         img_name, img_format = os.path.splitext(filename)
-        IMAGE_QUALITY = getattr(settings, "IMAGE_QUALITY", 60)
+        IMAGE_QUALITY = getattr(settings, "CKEDITOR_IMAGE_QUALITY", 60)
+        IMAGE_SIZE = getattr(settings, "CKEDITOR_IMAGE_SIZE", [800, 600])
 
-        if(str(img_format).lower() == "png"):
-
+        if str(img_format).lower() in ['.png', '.jpg', '.jpeg']:
+            output = BytesIO()
             img = Image.open(uploaded_file)
-            img = img.resize(img.size, Image.ANTIALIAS)
-            saved_path = default_storage.save("{}.jpg".format(img_name), uploaded_file)
-            img.save("{}.jpg".format(img_name), quality=IMAGE_QUALITY, optimize=True)
+            img_size = img.size
+            if img.size[0] > IMAGE_SIZE[0] or img.size[1] > IMAGE_SIZE[1]:
+                img_size = IMAGE_SIZE
+            img.thumbnail(img_size)
+            img_fmt = 'PNG' if 'png' in img_format else 'JPEG'
+            img.save(output, format=img_fmt, quality=IMAGE_QUALITY, optimize=True)
+            output.seek(0)
 
-        elif(str(img_format).lower() == "jpg" or str(img_format).lower() == "jpeg"):
-
-            img = Image.open(uploaded_file)
-            img = img.resize(img.size, Image.ANTIALIAS)
-            saved_path = default_storage.save(filename, uploaded_file)
-            img.save(saved_path, quality=IMAGE_QUALITY, optimize=True)
-
+            saved_path = default_storage.save(filename, output)
         else:
             saved_path = default_storage.save(filename, uploaded_file)
 
